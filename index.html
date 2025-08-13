@@ -57,7 +57,12 @@
 
         <!-- Results Table -->
         <div id="resultsContainer" class="hidden mt-6 overflow-x-auto">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Validation Results</h2>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">Validation Results</h2>
+                <button id="downloadBtn" class="px-4 py-2 rounded-full font-semibold text-white bg-green-600 hover:bg-green-700 transition-colors duration-200 shadow-md">
+                    <i class="fas fa-download mr-2"></i> Download Corrected CSV
+                </button>
+            </div>
             <table class="min-w-full table-auto bg-gray-50 rounded-lg shadow-sm">
                 <thead>
                     <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
@@ -76,18 +81,21 @@
     </div>
 
     <script>
-        // API key is an empty string as per instructions; the environment will provide it.
+        // API key is an empty string; the environment will provide it.
         const API_KEY = "";
-        // Updated to a more stable model
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
 
         const fileInput = document.getElementById('fileInput');
         const validateBtn = document.getElementById('validateBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
         const statusMessage = document.getElementById('statusMessage');
         const loadingDiv = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
         const resultsContainer = document.getElementById('resultsContainer');
         const resultsTableBody = document.getElementById('resultsTableBody');
+
+        // Store corrected data globally
+        let correctedCsvData = '';
 
         // Function to show a message box instead of alert()
         function showMessage(message, type = 'error') {
@@ -104,6 +112,7 @@
             errorDiv.style.display = 'none';
             resultsContainer.style.display = 'none';
             resultsTableBody.innerHTML = '';
+            downloadBtn.style.display = 'none';
         }
 
         // Function to call the Gemini API for spell-checking
@@ -113,9 +122,9 @@
                 return text;
             }
 
-            // Updated prompt for better clarity and performance
-            const prompt = `คุณเป็นผู้เชี่ยวชาญด้านภาษาไทย. ช่วยตรวจสอบและแก้ไขคำที่สะกดผิดในประโยคต่อไปนี้ให้ถูกต้อง: "${text}" ถ้าประโยคถูกต้องอยู่แล้วให้ตอบกลับด้วยประโยคเดิม ถ้ามีคำผิดให้แก้ไขให้ถูกต้อง. โปรดตอบกลับเฉพาะประโยคที่แก้ไขแล้วเท่านั้น`;
-
+            // More direct and specific prompt for better accuracy
+            const prompt = `ตรวจคำสะกดภาษาไทยในประโยคนี้และแก้ไขให้ถูกต้อง: "${text}" ถ้าไม่มีคำผิด ไม่ต้องแก้ไข.`;
+            
             let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
             const payload = { contents: chatHistory };
 
@@ -183,37 +192,45 @@
                     }
 
                     const headers = lines[0].split(',').map(header => header.trim().replace(/^"|"$/g, ''));
-                    const results = [];
+                    const errorResults = [];
+                    const correctedLines = [lines[0]]; // Start with original headers
 
                     for (let i = 1; i < lines.length; i++) {
                         const row = lines[i].split(',');
-                        if (row.length !== headers.length) continue; // Skip malformed rows
+                        if (row.length !== headers.length) {
+                            correctedLines.push(lines[i]); // Keep malformed rows as-is
+                            continue;
+                        }
 
+                        const correctedRow = [...row];
                         for (let j = 0; j < row.length; j++) {
-                            // Trim whitespace and remove surrounding double quotes from the cell text
                             const originalText = row[j].trim().replace(/^"|"$/g, '');
                             
-                            // Check if the cell contains Thai characters before calling the API
                             if (/[\u0E00-\u0E7F]/.test(originalText)) {
                                 const correctedText = await correctThaiSpelling(originalText);
                                 if (originalText.trim() !== correctedText.trim() && !correctedText.startsWith('Error:')) {
-                                    results.push({
+                                    errorResults.push({
                                         row: i,
                                         column: headers[j],
                                         original: originalText,
                                         corrected: correctedText
                                     });
+                                    correctedRow[j] = `"${correctedText}"`;
                                 }
                             }
                         }
+                        correctedLines.push(correctedRow.join(','));
                     }
 
+                    correctedCsvData = correctedLines.join('\n');
                     loadingDiv.style.display = 'none';
-                    if (results.length === 0) {
-                        showMessage('No spelling errors found or no Thai text to validate.', 'success');
+
+                    if (errorResults.length === 0) {
+                        showMessage('✅ No spelling errors found!', 'success');
                     } else {
                         resultsContainer.style.display = 'block';
-                        results.forEach(item => {
+                        downloadBtn.style.display = 'inline-block';
+                        errorResults.forEach(item => {
                             const row = document.createElement('tr');
                             row.className = 'border-b border-gray-200 hover:bg-gray-100';
                             row.innerHTML = `
@@ -227,7 +244,6 @@
                     }
                 };
 
-                // Specify UTF-8 encoding for reliable file reading
                 reader.readAsText(file, 'UTF-8');
 
             } catch (e) {
@@ -235,6 +251,23 @@
                 showMessage(`Failed to process file: ${e.message}`);
                 console.error("File processing error:", e);
             }
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            if (!correctedCsvData) {
+                showMessage('No corrected data to download. Please validate a file first.', 'error');
+                return;
+            }
+
+            const blob = new Blob([correctedCsvData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'corrected_data.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         });
 
     </script>

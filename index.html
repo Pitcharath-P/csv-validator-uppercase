@@ -78,7 +78,8 @@
     <script>
         // API key is an empty string as per instructions; the environment will provide it.
         const API_KEY = "";
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
+        // Updated to a more stable model
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
 
         const fileInput = document.getElementById('fileInput');
         const validateBtn = document.getElementById('validateBtn');
@@ -112,8 +113,9 @@
                 return text;
             }
 
-            const prompt = `คุณเป็นผู้เชี่ยวชาญด้านภาษาไทย. ช่วยตรวจสอบและแก้ไขคำที่สะกดผิดในประโยคต่อไปนี้ให้ถูกต้อง: "${text}" โปรดตอบกลับเฉพาะประโยคที่แก้ไขแล้วเท่านั้น`;
-            
+            // Updated prompt for better clarity and performance
+            const prompt = `คุณเป็นผู้เชี่ยวชาญด้านภาษาไทย. ช่วยตรวจสอบและแก้ไขคำที่สะกดผิดในประโยคต่อไปนี้ให้ถูกต้อง: "${text}" ถ้าประโยคถูกต้องอยู่แล้วให้ตอบกลับด้วยประโยคเดิม ถ้ามีคำผิดให้แก้ไขให้ถูกต้อง. โปรดตอบกลับเฉพาะประโยคที่แก้ไขแล้วเท่านั้น`;
+
             let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
             const payload = { contents: chatHistory };
 
@@ -179,8 +181,8 @@
                         loadingDiv.style.display = 'none';
                         return;
                     }
-                    
-                    const headers = lines[0].split(',');
+
+                    const headers = lines[0].split(',').map(header => header.trim().replace(/^"|"$/g, ''));
                     const results = [];
 
                     for (let i = 1; i < lines.length; i++) {
@@ -188,11 +190,13 @@
                         if (row.length !== headers.length) continue; // Skip malformed rows
 
                         for (let j = 0; j < row.length; j++) {
-                            const originalText = row[j].trim();
+                            // Trim whitespace and remove surrounding double quotes from the cell text
+                            const originalText = row[j].trim().replace(/^"|"$/g, '');
+                            
                             // Check if the cell contains Thai characters before calling the API
                             if (/[\u0E00-\u0E7F]/.test(originalText)) {
                                 const correctedText = await correctThaiSpelling(originalText);
-                                if (originalText !== correctedText && !correctedText.startsWith('Error:')) {
+                                if (originalText.trim() !== correctedText.trim() && !correctedText.startsWith('Error:')) {
                                     results.push({
                                         row: i,
                                         column: headers[j],
@@ -223,11 +227,13 @@
                     }
                 };
 
-                reader.readAsText(file);
+                // Specify UTF-8 encoding for reliable file reading
+                reader.readAsText(file, 'UTF-8');
 
             } catch (e) {
                 loadingDiv.style.display = 'none';
                 showMessage(`Failed to process file: ${e.message}`);
+                console.error("File processing error:", e);
             }
         });
 

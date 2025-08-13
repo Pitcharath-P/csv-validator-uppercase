@@ -70,6 +70,7 @@
                         <th class="py-3 px-6 text-left">Column</th>
                         <th class="py-3 px-6 text-left">Original Text</th>
                         <th class="py-3 px-6 text-left">Corrected Text</th>
+                        <th class="py-3 px-6 text-left">Explanation</th>
                     </tr>
                 </thead>
                 <tbody id="resultsTableBody" class="text-gray-600 text-sm font-light">
@@ -115,22 +116,35 @@
             downloadBtn.style.display = 'none';
         }
 
-        // Function to call the Gemini API for spell-checking
-        async function correctThaiSpelling(text) {
-            // Early return for empty or non-Thai text to save API calls
+        // Function to call the Gemini API for spell-checking and explanation
+        async function getThaiSpellingCorrection(text) {
             if (!text || text.trim() === '' || !/[\u0E00-\u0E7F]/.test(text)) {
-                return text;
+                return { is_correct: true, original_text: text, corrected_text: text, explanation: "" };
             }
 
-            // More direct and specific prompt for better accuracy
-            const prompt = `ตรวจคำสะกดภาษาไทยในประโยคนี้และแก้ไขให้ถูกต้อง: "${text}" ถ้าไม่มีคำผิด ไม่ต้องแก้ไข.`;
+            // New prompt to get a JSON response with details
+            const prompt = `ตรวจคำสะกดภาษาไทยในประโยคนี้และแก้ไขให้ถูกต้อง: "${text}" ถ้ามีคำผิด ให้แก้ไขและอธิบายสั้นๆ ว่าผิดตรงไหน ถ้าไม่มีคำผิด ให้ค่า corrected_text เป็นค่าเดิมและ explanation เป็นค่าว่าง.`;
             
-            let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-            const payload = { contents: chatHistory };
+            const payload = { 
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "is_correct": { "type": "BOOLEAN", "description": "True if the text has no spelling errors, false otherwise." },
+                            "original_text": { "type": "STRING", "description": "The original text provided." },
+                            "corrected_text": { "type": "STRING", "description": "The corrected text. Same as original_text if no errors found." },
+                            "explanation": { "type": "STRING", "description": "A brief explanation of the error, if any." }
+                        },
+                        "propertyOrdering": ["is_correct", "original_text", "corrected_text", "explanation"]
+                    }
+                }
+            };
 
             let attempts = 0;
             const maxRetries = 5;
-            let delay = 1000; // 1 second
+            let delay = 1000;
 
             while (attempts < maxRetries) {
                 try {
@@ -141,7 +155,7 @@
                     });
 
                     if (!response.ok) {
-                        if (response.status === 429) { // Too Many Requests
+                        if (response.status === 429) {
                             throw new Error('Rate limit exceeded. Retrying...');
                         }
                         const errorData = await response.json();
@@ -152,7 +166,8 @@
                     if (result.candidates && result.candidates.length > 0 &&
                         result.candidates[0].content && result.candidates[0].content.parts &&
                         result.candidates[0].content.parts.length > 0) {
-                        return result.candidates[0].content.parts[0].text.trim();
+                        const jsonText = result.candidates[0].content.parts[0].text;
+                        return JSON.parse(jsonText);
                     } else {
                         throw new Error('Unexpected API response structure.');
                     }
@@ -160,10 +175,10 @@
                     console.error(`Attempt ${attempts + 1} failed:`, e.message);
                     attempts++;
                     if (attempts >= maxRetries) {
-                        return `Error: Could not autocorrect. ${e.message}`;
+                        return { is_correct: false, original_text: text, corrected_text: `Error: Could not autocorrect.`, explanation: e.message };
                     }
                     await new Promise(resolve => setTimeout(resolve, delay));
-                    delay *= 2; // Exponential backoff
+                    delay *= 2;
                 }
             }
         }
@@ -193,12 +208,12 @@
 
                     const headers = lines[0].split(',').map(header => header.trim().replace(/^"|"$/g, ''));
                     const errorResults = [];
-                    const correctedLines = [lines[0]]; // Start with original headers
+                    const correctedLines = [lines[0]];
 
                     for (let i = 1; i < lines.length; i++) {
                         const row = lines[i].split(',');
                         if (row.length !== headers.length) {
-                            correctedLines.push(lines[i]); // Keep malformed rows as-is
+                            correctedLines.push(lines[i]);
                             continue;
                         }
 
@@ -207,15 +222,16 @@
                             const originalText = row[j].trim().replace(/^"|"$/g, '');
                             
                             if (/[\u0E00-\u0E7F]/.test(originalText)) {
-                                const correctedText = await correctThaiSpelling(originalText);
-                                if (originalText.trim() !== correctedText.trim() && !correctedText.startsWith('Error:')) {
+                                const validationResult = await getThaiSpellingCorrection(originalText);
+                                if (validationResult.is_correct === false) {
                                     errorResults.push({
                                         row: i,
                                         column: headers[j],
                                         original: originalText,
-                                        corrected: correctedText
+                                        corrected: validationResult.corrected_text,
+                                        explanation: validationResult.explanation
                                     });
-                                    correctedRow[j] = `"${correctedText}"`;
+                                    correctedRow[j] = `"${validationResult.corrected_text}"`;
                                 }
                             }
                         }
@@ -238,6 +254,7 @@
                                 <td class="py-3 px-6 text-left">${item.column}</td>
                                 <td class="py-3 px-6 text-left">${item.original}</td>
                                 <td class="py-3 px-6 text-left text-red-600 font-medium">${item.corrected}</td>
+                                <td class="py-3 px-6 text-left">${item.explanation}</td>
                             `;
                             resultsTableBody.appendChild(row);
                         });

@@ -47,7 +47,7 @@
                 <input type="text" id="googleSheetUrl" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste public Google Sheet CSV export URL here...">
                 <button id="validateSheetBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 w-full md:w-auto">Validate Sheet</button>
             </div>
-            <p class="text-sm text-gray-500">Note: The Google Sheet must be publicly shared and use the `/export?format=csv` URL format. Example: `https://docs.google.com/spreadsheets/d/e/2PACX-1vT1L.../pub?output=csv`</p>
+            <p class="text-sm text-gray-500">Note: The Google Sheet must be publicly shared and use the `/export?format=csv` URL format.</p>
         </div>
 
         <!-- Local CSV File Validation Section -->
@@ -94,10 +94,11 @@
         // A real-world application would require a much larger and more complex dictionary or a machine learning model.
         const thaiDictionary = new Set([
             'สวัสดี', 'ครับ', 'ค่ะ', 'สบายดี', 'ไหม', 'วันนี้', 'ไปไหน', 'มา', 'อาหาร', 'อร่อย',
-            'มาก', 'ขอบคุณ', 'ไม่เป็นไร', 'ขอโทษ', 'ยินดี', 'ต้อนรับ', 'กรุงเทพ', 'ประเทศไทย'
+            'มาก', 'ขอบคุณ', 'ไม่เป็นไร', 'ขอโทษ', 'ยินดี', 'ต้อนรับ', 'กรุงเทพ', 'ประเทศไทย',
+            'กิน', 'ข้าว', 'น้ำ', 'โรงเรียน', 'บ้าน', 'รถ', 'ตลาด', 'หนังสือ', 'เพลง', 'ฟัง'
         ]);
 
-        // Function to display results
+        // Function to display results and clear loading state
         const displayResults = (content, isError = false) => {
             loadingDiv.classList.add('hidden');
             resultsDiv.classList.remove('bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
@@ -112,6 +113,8 @@
         const showLoading = () => {
             loadingDiv.classList.remove('hidden');
             resultsDiv.innerHTML = '';
+            resultsDiv.classList.remove('bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
+            resultsDiv.classList.add('bg-gray-100', 'text-gray-800');
         };
 
         // General data validation function
@@ -123,27 +126,24 @@
             }
 
             // Simple validation: check if the first row is a header and if each row has the same number of columns
-            const headers = data[0];
+            const headers = Object.keys(data[0]);
             const numColumns = headers.length;
             if (headers.some(header => !header.trim())) {
                 isValid = false;
                 errors.push('Error: Header row contains empty column names.');
             }
 
-            for (let i = 1; i < data.length; i++) {
+            for (let i = 0; i < data.length; i++) {
                 const row = data[i];
-                // Skip empty rows
-                if (row.length === 1 && row[0] === '') continue;
-
-                if (row.length !== numColumns) {
+                if (Object.keys(row).length !== numColumns) {
                     isValid = false;
-                    errors.push(`Error on row ${i + 1}: Expected ${numColumns} columns, but found ${row.length}.`);
+                    errors.push(`Error on row ${i + 2}: Expected ${numColumns} columns, but found ${Object.keys(row).length}.`);
                 }
                 
                 // Example of field-level validation: check for empty values in the first column
-                if (!row[0] || row[0].trim() === '') {
+                if (!Object.values(row)[0] || String(Object.values(row)[0]).trim() === '') {
                     isValid = false;
-                    errors.push(`Error on row ${i + 1}: The first column (e.g., 'Name') cannot be empty.`);
+                    errors.push(`Error on row ${i + 2}: The first column cannot be empty.`);
                 }
             }
 
@@ -169,13 +169,16 @@
                     header: true,
                     skipEmptyLines: true,
                     complete: function(results) {
-                        const { data, errors } = results;
-                        if (errors.length > 0) {
-                             displayResults(`CSV parsing errors: ${JSON.stringify(errors, null, 2)}`, true);
+                        if (results.errors.length > 0) {
+                             displayResults(`CSV parsing errors:\n${results.errors.map(e => `- ${e.message}`).join('\n')}`, true);
                         } else {
-                            const validationResults = performDataValidation(data);
+                            if (results.data.length === 0) {
+                                displayResults('The CSV file is empty or contains no valid data.', true);
+                                return;
+                            }
+                            const validationResults = performDataValidation(results.data);
                             if (validationResults.isValid) {
-                                displayResults(`Data from Google Sheet is valid!\n\nFound ${data.length} records.`, false);
+                                displayResults(`Data from Google Sheet is valid!\n\nFound ${results.data.length} records.`, false);
                             } else {
                                 displayResults(`Data from Google Sheet contains validation errors:\n- ${validationResults.errors.join('\n- ')}`, true);
                             }
@@ -200,13 +203,16 @@
                 header: true,
                 skipEmptyLines: true,
                 complete: function(results) {
-                    const { data, errors } = results;
-                    if (errors.length > 0) {
-                        displayResults(`CSV parsing errors: ${JSON.stringify(errors, null, 2)}`, true);
+                    if (results.errors.length > 0) {
+                        displayResults(`CSV parsing errors:\n${results.errors.map(e => `- ${e.message}`).join('\n')}`, true);
                     } else {
-                        const validationResults = performDataValidation(data);
+                        if (results.data.length === 0) {
+                            displayResults('The CSV file is empty or contains no valid data.', true);
+                            return;
+                        }
+                        const validationResults = performDataValidation(results.data);
                         if (validationResults.isValid) {
-                            displayResults(`Local CSV file is valid!\n\nFound ${data.length} records.`, false);
+                            displayResults(`Local CSV file is valid!\n\nFound ${results.data.length} records.`, false);
                         } else {
                             displayResults(`Local CSV file contains validation errors:\n- ${validationResults.errors.join('\n- ')}`, true);
                         }
@@ -223,7 +229,7 @@
                 return;
             }
             
-            // A very simple tokenizer for Thai text
+            // A very simple tokenizer for Thai text. Splits by spaces and punctuation.
             const words = text.split(/[\s,.!?-]+/).filter(word => word.length > 0);
             const misspelledWords = [];
 

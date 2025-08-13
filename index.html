@@ -3,19 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thai CSV Validator</title>
+    <title>Data Validator & Thai Spell Checker</title>
+    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        /* Custom font and basic body styling */
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
         }
+        /* Style for the results box */
+        #results {
+            white-space: pre-wrap; /* Preserve formatting and line breaks */
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 0.5rem;
+        }
         .loading-spinner {
-            border-top-color: #3b82f6;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
             animation: spin 1s linear infinite;
         }
         @keyframes spin {
@@ -23,268 +32,213 @@
             100% { transform: rotate(360deg); }
         }
     </style>
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body class="p-4 md:p-8 flex items-center justify-center min-h-screen">
-    <div class="bg-white rounded-xl shadow-lg p-6 md:p-10 w-full max-w-4xl mx-auto space-y-6">
-        <!-- Title and Description -->
-        <div class="text-center">
-            <h1 class="text-3xl font-bold text-gray-800">Thai CSV Validator</h1>
-            <p class="mt-2 text-gray-500">Upload a CSV file to automatically check and correct Thai spelling using AI.</p>
-        </div>
 
-        <!-- File Input and Action Buttons -->
-        <div class="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
-            <input type="file" id="fileInput" accept=".csv" class="flex-grow w-full md:w-auto text-sm text-gray-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-full file:border-0
-                file:text-sm file:font-semibold
-                file:bg-blue-50 file:text-blue-700
-                hover:file:bg-blue-100
-            "/>
-            <button id="validateBtn" class="w-full md:w-auto px-6 py-2 rounded-full font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200 shadow-md">
-                <i class="fas fa-play mr-2"></i> Validate CSV
-            </button>
-        </div>
-
-        <!-- Loading and Status Indicators -->
-        <div id="statusMessage" class="hidden text-center text-sm font-medium text-gray-600">
-            <div id="loading" class="flex items-center justify-center space-x-2 hidden">
-                <div class="loading-spinner h-5 w-5 border-4 rounded-full border-gray-200"></div>
-                <span>Validating... Please wait.</span>
+    <div class="bg-white p-6 md:p-10 rounded-2xl shadow-xl max-w-4xl w-full space-y-8">
+        <h1 class="text-3xl font-bold text-gray-800 text-center">Data Validator & Thai Spell Checker</h1>
+        
+        <!-- Google Sheets Validation Section -->
+        <div class="space-y-4 border-b border-gray-200 pb-6">
+            <h2 class="text-2xl font-semibold text-gray-700">Validate from Google Sheets</h2>
+            <div class="flex flex-col md:flex-row items-center gap-4">
+                <input type="text" id="googleSheetUrl" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste public Google Sheet CSV export URL here...">
+                <button id="validateSheetBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 w-full md:w-auto">Validate Sheet</button>
             </div>
-            <div id="error" class="hidden p-3 bg-red-100 text-red-700 rounded-lg"></div>
+            <p class="text-sm text-gray-500">Note: The Google Sheet must be publicly shared and use the `/export?format=csv` URL format. Example: `https://docs.google.com/spreadsheets/d/e/2PACX-1vT1L.../pub?output=csv`</p>
         </div>
 
-        <!-- Results Table -->
-        <div id="resultsContainer" class="hidden mt-6 overflow-x-auto">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-gray-800">Validation Results</h2>
-                <button id="downloadBtn" class="px-4 py-2 rounded-full font-semibold text-white bg-green-600 hover:bg-green-700 transition-colors duration-200 shadow-md">
-                    <i class="fas fa-download mr-2"></i> Download Corrected CSV
-                </button>
+        <!-- Local CSV File Validation Section -->
+        <div class="space-y-4 border-b border-gray-200 pb-6">
+            <h2 class="text-2xl font-semibold text-gray-700">Validate from Local CSV</h2>
+            <div class="flex flex-col md:flex-row items-center gap-4">
+                <input type="file" id="csvFile" accept=".csv" class="flex-1 p-3 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100">
+                <button id="validateFileBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 w-full md:w-auto">Validate File</button>
             </div>
-            <table class="min-w-full table-auto bg-gray-50 rounded-lg shadow-sm">
-                <thead>
-                    <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
-                        <th class="py-3 px-6 text-left">Row</th>
-                        <th class="py-3 px-6 text-left">Column</th>
-                        <th class="py-3 px-6 text-left">Original Text</th>
-                        <th class="py-3 px-6 text-left">Corrected Text</th>
-                        <th class="py-3 px-6 text-left">Explanation</th>
-                    </tr>
-                </thead>
-                <tbody id="resultsTableBody" class="text-gray-600 text-sm font-light">
-                    <!-- Results will be dynamically inserted here -->
-                </tbody>
-            </table>
         </div>
 
+        <!-- Thai Spell Checker Section -->
+        <div class="space-y-4 border-b border-gray-200 pb-6">
+            <h2 class="text-2xl font-semibold text-gray-700">Thai Spell Checker</h2>
+            <textarea id="thaiText" rows="6" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="พิมพ์ข้อความภาษาไทยเพื่อตรวจสอบการสะกด... (Type Thai text to check spelling...)"></textarea>
+            <button id="checkSpellingBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 w-full">Check Spelling</button>
+        </div>
+
+        <!-- Results Display Section -->
+        <div class="space-y-4">
+            <h2 class="text-2xl font-semibold text-gray-700">Results</h2>
+            <div id="loading" class="hidden flex items-center justify-center p-4">
+                <div class="loading-spinner"></div>
+                <span class="ml-4 text-gray-500">Processing...</span>
+            </div>
+            <div id="results" class="bg-gray-100 text-gray-800 p-4 border border-gray-300 rounded-lg">
+                <p class="text-gray-500">Results will appear here.</p>
+            </div>
+        </div>
     </div>
 
     <script>
-        // API key is an empty string; the environment will provide it.
-        const API_KEY = "";
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
-
-        const fileInput = document.getElementById('fileInput');
-        const validateBtn = document.getElementById('validateBtn');
-        const downloadBtn = document.getElementById('downloadBtn');
-        const statusMessage = document.getElementById('statusMessage');
+        // DOM element references
+        const googleSheetUrlInput = document.getElementById('googleSheetUrl');
+        const validateSheetBtn = document.getElementById('validateSheetBtn');
+        const csvFileInput = document.getElementById('csvFile');
+        const validateFileBtn = document.getElementById('validateFileBtn');
+        const thaiTextInput = document.getElementById('thaiText');
+        const checkSpellingBtn = document.getElementById('checkSpellingBtn');
+        const resultsDiv = document.getElementById('results');
         const loadingDiv = document.getElementById('loading');
-        const errorDiv = document.getElementById('error');
-        const resultsContainer = document.getElementById('resultsContainer');
-        const resultsTableBody = document.getElementById('resultsTableBody');
 
-        // Store corrected data globally
-        let correctedCsvData = '';
+        // A very simple mock dictionary for Thai words. 
+        // A real-world application would require a much larger and more complex dictionary or a machine learning model.
+        const thaiDictionary = new Set([
+            'สวัสดี', 'ครับ', 'ค่ะ', 'สบายดี', 'ไหม', 'วันนี้', 'ไปไหน', 'มา', 'อาหาร', 'อร่อย',
+            'มาก', 'ขอบคุณ', 'ไม่เป็นไร', 'ขอโทษ', 'ยินดี', 'ต้อนรับ', 'กรุงเทพ', 'ประเทศไทย'
+        ]);
 
-        // Function to show a message box instead of alert()
-        function showMessage(message, type = 'error') {
-            errorDiv.textContent = message;
-            errorDiv.className = `p-3 rounded-lg ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
-            errorDiv.style.display = 'block';
-            statusMessage.style.display = 'block';
-        }
+        // Function to display results
+        const displayResults = (content, isError = false) => {
+            loadingDiv.classList.add('hidden');
+            resultsDiv.classList.remove('bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
+            if (isError) {
+                resultsDiv.classList.add('bg-red-100', 'text-red-800');
+            } else {
+                resultsDiv.classList.add('bg-green-100', 'text-green-800');
+            }
+            resultsDiv.innerHTML = `<pre>${content}</pre>`;
+        };
 
-        // Function to hide all status/result sections
-        function resetUI() {
-            statusMessage.style.display = 'none';
-            loadingDiv.style.display = 'none';
-            errorDiv.style.display = 'none';
-            resultsContainer.style.display = 'none';
-            resultsTableBody.innerHTML = '';
-            downloadBtn.style.display = 'none';
-        }
+        const showLoading = () => {
+            loadingDiv.classList.remove('hidden');
+            resultsDiv.innerHTML = '';
+        };
 
-        // Function to call the Gemini API for spell-checking and explanation
-        async function getThaiSpellingCorrection(text) {
-            if (!text || text.trim() === '' || !/[\u0E00-\u0E7F]/.test(text)) {
-                return { is_correct: true, original_text: text, corrected_text: text, explanation: "" };
+        // General data validation function
+        const performDataValidation = (data) => {
+            const errors = [];
+            let isValid = true;
+            if (data.length === 0) {
+                return { isValid: false, errors: ['No data found in the file.'] };
             }
 
-            // New prompt to get a JSON response with details
-            const prompt = `ตรวจคำสะกดภาษาไทยในประโยคนี้และแก้ไขให้ถูกต้อง: "${text}" ถ้ามีคำผิด ให้แก้ไขและอธิบายสั้นๆ ว่าผิดตรงไหน ถ้าไม่มีคำผิด ให้ค่า corrected_text เป็นค่าเดิมและ explanation เป็นค่าว่าง.`;
-            
-            const payload = { 
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            "is_correct": { "type": "BOOLEAN", "description": "True if the text has no spelling errors, false otherwise." },
-                            "original_text": { "type": "STRING", "description": "The original text provided." },
-                            "corrected_text": { "type": "STRING", "description": "The corrected text. Same as original_text if no errors found." },
-                            "explanation": { "type": "STRING", "description": "A brief explanation of the error, if any." }
-                        },
-                        "propertyOrdering": ["is_correct", "original_text", "corrected_text", "explanation"]
-                    }
+            // Simple validation: check if the first row is a header and if each row has the same number of columns
+            const headers = data[0];
+            const numColumns = headers.length;
+            if (headers.some(header => !header.trim())) {
+                isValid = false;
+                errors.push('Error: Header row contains empty column names.');
+            }
+
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                // Skip empty rows
+                if (row.length === 1 && row[0] === '') continue;
+
+                if (row.length !== numColumns) {
+                    isValid = false;
+                    errors.push(`Error on row ${i + 1}: Expected ${numColumns} columns, but found ${row.length}.`);
                 }
-            };
-
-            let attempts = 0;
-            const maxRetries = 5;
-            let delay = 1000;
-
-            while (attempts < maxRetries) {
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        if (response.status === 429) {
-                            throw new Error('Rate limit exceeded. Retrying...');
-                        }
-                        const errorData = await response.json();
-                        throw new Error(`API error: ${errorData.error.message}`);
-                    }
-
-                    const result = await response.json();
-                    if (result.candidates && result.candidates.length > 0 &&
-                        result.candidates[0].content && result.candidates[0].content.parts &&
-                        result.candidates[0].content.parts.length > 0) {
-                        const jsonText = result.candidates[0].content.parts[0].text;
-                        return JSON.parse(jsonText);
-                    } else {
-                        throw new Error('Unexpected API response structure.');
-                    }
-                } catch (e) {
-                    console.error(`Attempt ${attempts + 1} failed:`, e.message);
-                    attempts++;
-                    if (attempts >= maxRetries) {
-                        return { is_correct: false, original_text: text, corrected_text: `Error: Could not autocorrect.`, explanation: e.message };
-                    }
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    delay *= 2;
+                
+                // Example of field-level validation: check for empty values in the first column
+                if (!row[0] || row[0].trim() === '') {
+                    isValid = false;
+                    errors.push(`Error on row ${i + 1}: The first column (e.g., 'Name') cannot be empty.`);
                 }
             }
-        }
 
-        // Main function to handle file upload and validation
-        validateBtn.addEventListener('click', async () => {
-            resetUI();
-            const file = fileInput.files[0];
-            if (!file) {
-                showMessage('Please select a CSV file first.');
+            return { isValid, errors };
+        };
+
+        // Handle Google Sheets URL validation
+        validateSheetBtn.addEventListener('click', async () => {
+            const url = googleSheetUrlInput.value;
+            if (!url) {
+                displayResults('Please enter a Google Sheet URL.', true);
                 return;
             }
-
-            loadingDiv.style.display = 'flex';
-            statusMessage.style.display = 'block';
+            showLoading();
 
             try {
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    const text = e.target.result;
-                    const lines = text.split('\n');
-                    if (lines.length <= 1) {
-                        showMessage('CSV file is empty or has no data.');
-                        loadingDiv.style.display = 'none';
-                        return;
-                    }
-
-                    const headers = lines[0].split(',').map(header => header.trim().replace(/^"|"$/g, ''));
-                    const errorResults = [];
-                    const correctedLines = [lines[0]];
-
-                    for (let i = 1; i < lines.length; i++) {
-                        const row = lines[i].split(',');
-                        if (row.length !== headers.length) {
-                            correctedLines.push(lines[i]);
-                            continue;
-                        }
-
-                        const correctedRow = [...row];
-                        for (let j = 0; j < row.length; j++) {
-                            const originalText = row[j].trim().replace(/^"|"$/g, '');
-                            
-                            if (/[\u0E00-\u0E7F]/.test(originalText)) {
-                                const validationResult = await getThaiSpellingCorrection(originalText);
-                                if (validationResult.is_correct === false) {
-                                    errorResults.push({
-                                        row: i,
-                                        column: headers[j],
-                                        original: originalText,
-                                        corrected: validationResult.corrected_text,
-                                        explanation: validationResult.explanation
-                                    });
-                                    correctedRow[j] = `"${validationResult.corrected_text}"`;
-                                }
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch: ${response.statusText}`);
+                }
+                const csvText = await response.text();
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        const { data, errors } = results;
+                        if (errors.length > 0) {
+                             displayResults(`CSV parsing errors: ${JSON.stringify(errors, null, 2)}`, true);
+                        } else {
+                            const validationResults = performDataValidation(data);
+                            if (validationResults.isValid) {
+                                displayResults(`Data from Google Sheet is valid!\n\nFound ${data.length} records.`, false);
+                            } else {
+                                displayResults(`Data from Google Sheet contains validation errors:\n- ${validationResults.errors.join('\n- ')}`, true);
                             }
                         }
-                        correctedLines.push(correctedRow.join(','));
                     }
-
-                    correctedCsvData = correctedLines.join('\n');
-                    loadingDiv.style.display = 'none';
-
-                    if (errorResults.length === 0) {
-                        showMessage('✅ No spelling errors found!', 'success');
-                    } else {
-                        resultsContainer.style.display = 'block';
-                        downloadBtn.style.display = 'inline-block';
-                        errorResults.forEach(item => {
-                            const row = document.createElement('tr');
-                            row.className = 'border-b border-gray-200 hover:bg-gray-100';
-                            row.innerHTML = `
-                                <td class="py-3 px-6 text-left whitespace-nowrap">${item.row}</td>
-                                <td class="py-3 px-6 text-left">${item.column}</td>
-                                <td class="py-3 px-6 text-left">${item.original}</td>
-                                <td class="py-3 px-6 text-left text-red-600 font-medium">${item.corrected}</td>
-                                <td class="py-3 px-6 text-left">${item.explanation}</td>
-                            `;
-                            resultsTableBody.appendChild(row);
-                        });
-                    }
-                };
-
-                reader.readAsText(file, 'UTF-8');
-
-            } catch (e) {
-                loadingDiv.style.display = 'none';
-                showMessage(`Failed to process file: ${e.message}`);
-                console.error("File processing error:", e);
+                });
+            } catch (error) {
+                displayResults(`Error fetching or parsing Google Sheet: ${error.message}`, true);
             }
         });
 
-        downloadBtn.addEventListener('click', () => {
-            if (!correctedCsvData) {
-                showMessage('No corrected data to download. Please validate a file first.', 'error');
+        // Handle local CSV file validation
+        validateFileBtn.addEventListener('click', () => {
+            const file = csvFileInput.files[0];
+            if (!file) {
+                displayResults('Please select a local CSV file.', true);
                 return;
             }
+            showLoading();
 
-            const blob = new Blob([correctedCsvData], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', 'corrected_data.csv');
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    const { data, errors } = results;
+                    if (errors.length > 0) {
+                        displayResults(`CSV parsing errors: ${JSON.stringify(errors, null, 2)}`, true);
+                    } else {
+                        const validationResults = performDataValidation(data);
+                        if (validationResults.isValid) {
+                            displayResults(`Local CSV file is valid!\n\nFound ${data.length} records.`, false);
+                        } else {
+                            displayResults(`Local CSV file contains validation errors:\n- ${validationResults.errors.join('\n- ')}`, true);
+                        }
+                    }
+                }
+            });
+        });
+
+        // Handle Thai spell checking
+        checkSpellingBtn.addEventListener('click', () => {
+            const text = thaiTextInput.value.trim();
+            if (!text) {
+                displayResults('Please enter some Thai text to check.', true);
+                return;
+            }
+            
+            // A very simple tokenizer for Thai text
+            const words = text.split(/[\s,.!?-]+/).filter(word => word.length > 0);
+            const misspelledWords = [];
+
+            for (const word of words) {
+                if (!thaiDictionary.has(word)) {
+                    misspelledWords.push(word);
+                }
+            }
+
+            if (misspelledWords.length > 0) {
+                const message = `Misspelled words found:\n- ${misspelledWords.join('\n- ')}`;
+                displayResults(message, true);
+            } else {
+                displayResults('No spelling errors found.', false);
+            }
         });
 
     </script>

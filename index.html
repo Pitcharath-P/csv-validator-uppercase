@@ -3,250 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Validator & Thai Spell Checker</title>
-    <!-- Tailwind CSS for styling -->
+    <title>CSV Text Validator</title>
+    <!-- Use Tailwind CSS for easy styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom font and basic body styling */
+        /* Custom styles can be added here if needed, but Tailwind classes are used for most of the styling */
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
         }
-        /* Style for the results box */
-        #results {
-            white-space: pre-wrap; /* Preserve formatting and line breaks */
-            max-height: 400px;
-            overflow-y: auto;
-            border-radius: 0.5rem;
-        }
-        .loading-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3b82f6;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
     </style>
-    <!-- PapaParse for CSV parsing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
-<body class="p-4 md:p-8 flex items-center justify-center min-h-screen">
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
+        <!-- Application Title -->
+        <h1 class="text-3xl font-bold text-gray-800 mb-4 text-center">CSV Text Processor</h1>
+        <p class="text-gray-600 mb-6 text-center">
+            Select a CSV file to read, validate, and convert its text to uppercase.
+        </p>
 
-    <div class="bg-white p-6 md:p-10 rounded-2xl shadow-xl max-w-4xl w-full space-y-8">
-        <h1 class="text-3xl font-bold text-gray-800 text-center">Data Validator & Thai Spell Checker</h1>
-        
-        <!-- Google Sheets Validation Section -->
-        <div class="space-y-4 border-b border-gray-200 pb-6">
-            <h2 class="text-2xl font-semibold text-gray-700">Validate from Google Sheets</h2>
-            <div class="flex flex-col md:flex-row items-center gap-4">
-                <input type="text" id="googleSheetUrl" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste public Google Sheet CSV export URL here...">
-                <button id="validateSheetBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 w-full md:w-auto">Validate Sheet</button>
-            </div>
-            <p class="text-sm text-gray-500">Note: The Google Sheet must be publicly shared and use the `/export?format=csv` URL format.</p>
-        </div>
-
-        <!-- Local CSV File Validation Section -->
-        <div class="space-y-4 border-b border-gray-200 pb-6">
-            <h2 class="text-2xl font-semibold text-gray-700">Validate from Local CSV</h2>
-            <div class="flex flex-col md:flex-row items-center gap-4">
-                <input type="file" id="csvFile" accept=".csv" class="flex-1 p-3 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100">
-                <button id="validateFileBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 w-full md:w-auto">Validate File</button>
-            </div>
-        </div>
-
-        <!-- Thai Spell Checker Section -->
-        <div class="space-y-4 border-b border-gray-200 pb-6">
-            <h2 class="text-2xl font-semibold text-gray-700">Thai Spell Checker</h2>
-            <textarea id="thaiText" rows="6" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="พิมพ์ข้อความภาษาไทยเพื่อตรวจสอบการสะกด... (Type Thai text to check spelling...)"></textarea>
-            <button id="checkSpellingBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 w-full">Check Spelling</button>
-        </div>
-
-        <!-- Results Display Section -->
+        <!-- UI for File Input and Processing Button -->
         <div class="space-y-4">
-            <h2 class="text-2xl font-semibold text-gray-700">Results</h2>
-            <div id="loading" class="hidden flex items-center justify-center p-4">
-                <div class="loading-spinner"></div>
-                <span class="ml-4 text-gray-500">Processing...</span>
+            <!-- File Input -->
+            <label for="fileInput" class="block text-sm font-medium text-gray-700">Choose a CSV File:</label>
+            <input type="file" id="fileInput" accept=".csv" class="block w-full text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-50 file:text-blue-700
+                hover:file:bg-blue-100
+                cursor-pointer">
+            
+            <!-- Process Button -->
+            <button id="processButton" class="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md
+                hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50
+                transition-colors duration-200">
+                Process File
+            </button>
+        </div>
+
+        <!-- Results Display Area -->
+        <div id="results" class="mt-8 p-6 bg-gray-50 rounded-lg shadow-inner hidden">
+            <!-- Loading indicator -->
+            <div id="loading" class="text-center text-gray-500 hidden">
+                <svg class="animate-spin h-5 w-5 text-blue-500 inline-block mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing...
             </div>
-            <div id="results" class="bg-gray-100 text-gray-800 p-4 border border-gray-300 rounded-lg">
-                <p class="text-gray-500">Results will appear here.</p>
+
+            <!-- Content display headers -->
+            <div id="contentHeaders" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+                <div class="p-2 font-bold text-gray-700 border-b border-gray-200">Original Content</div>
+                <div class="p-2 font-bold text-gray-700 border-b border-gray-200">Uppercase Content</div>
             </div>
+
+            <!-- Content display area -->
+            <div id="contentDisplay" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <pre id="originalContent" class="bg-white p-4 rounded-md border border-gray-200 text-gray-800 overflow-auto"></pre>
+                <pre id="uppercaseContent" class="bg-white p-4 rounded-md border border-gray-200 text-gray-800 overflow-auto"></pre>
+            </div>
+
+            <!-- Validation message -->
+            <div id="validationMessage" class="mt-4 p-4 rounded-lg text-center font-medium hidden"></div>
         </div>
     </div>
 
     <script>
-        // DOM element references
-        const googleSheetUrlInput = document.getElementById('googleSheetUrl');
-        const validateSheetBtn = document.getElementById('validateSheetBtn');
-        const csvFileInput = document.getElementById('csvFile');
-        const validateFileBtn = document.getElementById('validateFileBtn');
-        const thaiTextInput = document.getElementById('thaiText');
-        const checkSpellingBtn = document.getElementById('checkSpellingBtn');
+        // Get references to all necessary UI elements
+        const fileInput = document.getElementById('fileInput');
+        const processButton = document.getElementById('processButton');
         const resultsDiv = document.getElementById('results');
+        const originalContentPre = document.getElementById('originalContent');
+        const uppercaseContentPre = document.getElementById('uppercaseContent');
+        const validationMessageDiv = document.getElementById('validationMessage');
         const loadingDiv = document.getElementById('loading');
+        const contentHeadersDiv = document.getElementById('contentHeaders');
 
-        // A very simple mock dictionary for Thai words. 
-        // A real-world application would require a much larger and more complex dictionary or a machine learning model.
-        const thaiDictionary = new Set([
-            'สวัสดี', 'ครับ', 'ค่ะ', 'สบายดี', 'ไหม', 'วันนี้', 'ไปไหน', 'มา', 'อาหาร', 'อร่อย',
-            'มาก', 'ขอบคุณ', 'ไม่เป็นไร', 'ขอโทษ', 'ยินดี', 'ต้อนรับ', 'กรุงเทพ', 'ประเทศไทย',
-            'กิน', 'ข้าว', 'น้ำ', 'โรงเรียน', 'บ้าน', 'รถ', 'ตลาด', 'หนังสือ', 'เพลง', 'ฟัง'
-        ]);
-
-        // Function to display results and clear loading state
-        const displayResults = (content, isError = false) => {
-            loadingDiv.classList.add('hidden');
-            resultsDiv.classList.remove('bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
-            if (isError) {
-                resultsDiv.classList.add('bg-red-100', 'text-red-800');
-            } else {
-                resultsDiv.classList.add('bg-green-100', 'text-green-800');
-            }
-            resultsDiv.innerHTML = `<pre>${content}</pre>`;
-        };
-
-        const showLoading = () => {
-            loadingDiv.classList.remove('hidden');
-            resultsDiv.innerHTML = '';
-            resultsDiv.classList.remove('bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
-            resultsDiv.classList.add('bg-gray-100', 'text-gray-800');
-        };
-
-        // General data validation function
-        const performDataValidation = (data) => {
-            const errors = [];
-            let isValid = true;
-            if (data.length === 0) {
-                return { isValid: false, errors: ['No data found in the file.'] };
-            }
-
-            // Simple validation: check if the first row is a header and if each row has the same number of columns
-            const headers = Object.keys(data[0]);
-            const numColumns = headers.length;
-            if (headers.some(header => !header.trim())) {
-                isValid = false;
-                errors.push('Error: Header row contains empty column names.');
-            }
-
-            for (let i = 0; i < data.length; i++) {
-                const row = data[i];
-                if (Object.keys(row).length !== numColumns) {
-                    isValid = false;
-                    errors.push(`Error on row ${i + 2}: Expected ${numColumns} columns, but found ${Object.keys(row).length}.`);
-                }
-                
-                // Example of field-level validation: check for empty values in the first column
-                if (!Object.values(row)[0] || String(Object.values(row)[0]).trim() === '') {
-                    isValid = false;
-                    errors.push(`Error on row ${i + 2}: The first column cannot be empty.`);
-                }
-            }
-
-            return { isValid, errors };
-        };
-
-        // Handle Google Sheets URL validation
-        validateSheetBtn.addEventListener('click', async () => {
-            const url = googleSheetUrlInput.value;
-            if (!url) {
-                displayResults('Please enter a Google Sheet URL.', true);
-                return;
-            }
-            showLoading();
-
-            try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch: ${response.statusText}`);
-                }
-                const csvText = await response.text();
-                Papa.parse(csvText, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: function(results) {
-                        if (results.errors.length > 0) {
-                             displayResults(`CSV parsing errors:\n${results.errors.map(e => `- ${e.message}`).join('\n')}`, true);
-                        } else {
-                            if (results.data.length === 0) {
-                                displayResults('The CSV file is empty or contains no valid data.', true);
-                                return;
-                            }
-                            const validationResults = performDataValidation(results.data);
-                            if (validationResults.isValid) {
-                                displayResults(`Data from Google Sheet is valid!\n\nFound ${results.data.length} records.`, false);
-                            } else {
-                                displayResults(`Data from Google Sheet contains validation errors:\n- ${validationResults.errors.join('\n- ')}`, true);
-                            }
-                        }
-                    }
-                });
-            } catch (error) {
-                displayResults(`Error fetching or parsing Google Sheet: ${error.message}`, true);
-            }
-        });
-
-        // Handle local CSV file validation
-        validateFileBtn.addEventListener('click', () => {
-            const file = csvFileInput.files[0];
+        // Add a click event listener to the process button
+        processButton.addEventListener('click', async () => {
+            // Check if a file has been selected
+            const file = fileInput.files[0];
             if (!file) {
-                displayResults('Please select a local CSV file.', true);
+                // If no file is selected, show a message box (instead of alert)
+                showMessageBox('Please select a CSV file first.', 'error');
                 return;
             }
-            showLoading();
 
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (results.errors.length > 0) {
-                        displayResults(`CSV parsing errors:\n${results.errors.map(e => `- ${e.message}`).join('\n')}`, true);
-                    } else {
-                        if (results.data.length === 0) {
-                            displayResults('The CSV file is empty or contains no valid data.', true);
-                            return;
-                        }
-                        const validationResults = performDataValidation(results.data);
-                        if (validationResults.isValid) {
-                            displayResults(`Local CSV file is valid!\n\nFound ${results.data.length} records.`, false);
-                        } else {
-                            displayResults(`Local CSV file contains validation errors:\n- ${validationResults.errors.join('\n- ')}`, true);
-                        }
-                    }
-                }
-            });
-        });
-
-        // Handle Thai spell checking
-        checkSpellingBtn.addEventListener('click', () => {
-            const text = thaiTextInput.value.trim();
-            if (!text) {
-                displayResults('Please enter some Thai text to check.', true);
-                return;
-            }
+            // Show loading indicator and results area
+            resultsDiv.classList.remove('hidden');
+            loadingDiv.classList.remove('hidden');
+            originalContentPre.textContent = '';
+            uppercaseContentPre.textContent = '';
+            validationMessageDiv.textContent = '';
+            validationMessageDiv.classList.add('hidden');
+            contentHeadersDiv.classList.add('hidden');
             
-            // A very simple tokenizer for Thai text. Splits by spaces and punctuation.
-            const words = text.split(/[\s,.!?-]+/).filter(word => word.length > 0);
-            const misspelledWords = [];
+            try {
+                // Use FileReader to asynchronously read the file content
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    // Hide loading indicator
+                    loadingDiv.classList.add('hidden');
+                    
+                    const fileContent = event.target.result;
+                    
+                    // Basic validation: Check if the file is empty
+                    if (!fileContent.trim()) {
+                        showMessageBox('Error: The selected file is empty.', 'error');
+                        return;
+                    }
 
-            for (const word of words) {
-                if (!thaiDictionary.has(word)) {
-                    misspelledWords.push(word);
-                }
-            }
+                    // Store original content and convert to uppercase
+                    originalContentPre.textContent = fileContent;
+                    const uppercaseContent = fileContent.toUpperCase();
+                    uppercaseContentPre.textContent = uppercaseContent;
 
-            if (misspelledWords.length > 0) {
-                const message = `Misspelled words found:\n- ${misspelledWords.join('\n- ')}`;
-                displayResults(message, true);
-            } else {
-                displayResults('No spelling errors found.', false);
+                    // Show content headers and a success message
+                    contentHeadersDiv.classList.remove('hidden');
+                    showMessageBox('Success! The file has been processed and validated.', 'success');
+                };
+
+                // Read the file as text
+                reader.readAsText(file);
+            } catch (error) {
+                // Handle potential errors during file reading
+                loadingDiv.classList.add('hidden');
+                showMessageBox(`An error occurred: ${error.message}`, 'error');
             }
         });
 
+        // Function to display messages in a custom message box UI
+        function showMessageBox(message, type) {
+            validationMessageDiv.textContent = message;
+            validationMessageDiv.classList.remove('hidden');
+            
+            // Set styles based on the message type (success or error)
+            if (type === 'success') {
+                validationMessageDiv.classList.remove('bg-red-100', 'text-red-700');
+                validationMessageDiv.classList.add('bg-green-100', 'text-green-700');
+            } else if (type === 'error') {
+                validationMessageDiv.classList.remove('bg-green-100', 'text-green-700');
+                validationMessageDiv.classList.add('bg-red-100', 'text-red-700');
+            }
+        }
     </script>
 </body>
 </html>
